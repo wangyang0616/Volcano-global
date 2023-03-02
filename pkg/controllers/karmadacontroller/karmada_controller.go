@@ -73,8 +73,25 @@ to create regular Kubernetes resources.`,
 	// (https://github.com/kubernetes-sigs/controller-runtime/blob/v0.11.1/pkg/client/config/config.go#L39),
 	// and update the flag usage.
 	// genericFlagSet.AddGoFlagSet(flag.CommandLine)
-	// genericFlagSet.Lookup("kubeconfig").Usage = "Path to karmada control plane kubeconfig file."
-	// opts.AddFlags(genericFlagSet, controllers.ControllerNames(), controllersDisabledByDefault.List())
+	genericFlagSet.Lookup("kubeconfig").Usage = "Path to karmada control plane kubeconfig file."
+	controllerNames := []string{
+		"cluster",
+		"clusterStatus",
+		"hpa",
+		"binding",
+		"execution",
+		"workStatus",
+		"namespace",
+		"serviceExport",
+		"endpointSlice",
+		"serviceImport",
+		"unifiedAuth",
+		"federatedResourceQuotaSync",
+		"federatedResourceQuotaStatus",
+		"gracefulEviction",
+	}
+	controllerDisabledByDefault := []string{"hpa"}
+	opts.AddFlags(genericFlagSet, controllerNames, controllerDisabledByDefault)
 
 	// Set klog flags
 	logsFlagSet := fss.FlagSet("logs")
