@@ -71,6 +71,6 @@ vg-controller-manager: init
 	CC=${CC} CGO_ENABLED=0 go build -ldflags ${LD_FLAGS} -gcflags="all=-N -l" -o ${BIN_DIR}/vg-controller-manager ./cmd/controller-manager
 
 images:
-	for name in vg-aggregated-apiserver controller-manager; do\
+	for name in aggregated-apiserver controller-manager; do\
 		docker buildx build -t "${IMAGE_PREFIX}/vg-$$name:$(TAG)" . -f ./installer/dockerfile/$$name/Dockerfile --output=type=${BUILDX_OUTPUT_TYPE} --platform ${DOCKER_PLATFORMS}; \
 	done
