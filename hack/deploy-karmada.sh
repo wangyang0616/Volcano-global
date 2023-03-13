@@ -81,9 +81,9 @@ function generate_cert_secret {
     local TEMP_PATH
     TEMP_PATH=$(mktemp -d)
 
-    cp -rf "${REPO_ROOT}"/artifacts/deploy/karmada-cert-secret.yaml "${TEMP_PATH}"/karmada-cert-secret-tmp.yaml
-    cp -rf "${REPO_ROOT}"/artifacts/deploy/secret.yaml "${TEMP_PATH}"/secret-tmp.yaml
-    cp -rf "${REPO_ROOT}"/artifacts/deploy/karmada-webhook-cert-secret.yaml "${TEMP_PATH}"/karmada-webhook-cert-secret-tmp.yaml
+    cp -rf "${REPO_ROOT}"/installer/artifacts/deploy/karmada-cert-secret.yaml "${TEMP_PATH}"/karmada-cert-secret-tmp.yaml
+    cp -rf "${REPO_ROOT}"/installer/artifacts/deploy/secret.yaml "${TEMP_PATH}"/secret-tmp.yaml
+    cp -rf "${REPO_ROOT}"/installer/artifacts/deploy/karmada-webhook-cert-secret.yaml "${TEMP_PATH}"/karmada-webhook-cert-secret-tmp.yaml
 
     sed -i'' -e "s/{{ca_crt}}/${karmada_ca}/g" "${TEMP_PATH}"/karmada-cert-secret-tmp.yaml
     sed -i'' -e "s/{{ca_key}}/${karmada_ca_key}/g" "${TEMP_PATH}"/karmada-cert-secret-tmp.yaml
@@ -120,7 +120,7 @@ function installCRDs() {
     local context_name=$1
     local crd_path=$2
 
-    kubectl --context="${context_name}" apply -f "${REPO_ROOT}/artifacts/deploy/namespace.yaml"
+    kubectl --context="${context_name}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/namespace.yaml"
 
     kubectl --context="${context_name}" apply -k "${crd_path}"/_crds
 }
@@ -145,7 +145,7 @@ util::create_certkey "" "${CERT_DIR}" "etcd-ca" etcd-server etcd-server "" kuber
 util::create_certkey "" "${CERT_DIR}" "etcd-ca" etcd-client etcd-client "" "*.etcd.karmada-system.svc.cluster.local" "*.karmada-system.svc.cluster.local" "*.karmada-system.svc" "localhost" "127.0.0.1"
 
 # create namespace for control plane components
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/namespace.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/namespace.yaml"
 
 KARMADA_CRT=$(base64 "${CERT_DIR}/karmada.crt" | tr -d '\r\n')
 KARMADA_KEY=$(base64 "${CERT_DIR}/karmada.key" | tr -d '\r\n')
@@ -162,7 +162,7 @@ ETCD_CLIENT_KEY=$(base64 "${CERT_DIR}/etcd-client.key" | tr -d '\r\n')
 generate_cert_secret
 
 # deploy karmada etcd
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-etcd.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-etcd.yaml"
 
 # Wait for karmada-etcd to come up before launching the rest of the components.
 util::wait_pod_ready "${HOST_CLUSTER_NAME}" "${ETCD_POD_LABEL}" "${KARMADA_SYSTEM_NAMESPACE}"
@@ -185,7 +185,7 @@ fi
 
 # deploy karmada apiserver
 TEMP_PATH_APISERVER=$(mktemp -d)
-cp "${REPO_ROOT}"/artifacts/deploy/karmada-apiserver.yaml "${TEMP_PATH_APISERVER}"/karmada-apiserver.yaml
+cp "${REPO_ROOT}"/installer/artifacts/deploy/karmada-apiserver.yaml "${TEMP_PATH_APISERVER}"/karmada-apiserver.yaml
 sed -i'' -e "s/{{service_type}}/${KARMADA_APISERVER_SERVICE_TYPE}/g" "${TEMP_PATH_APISERVER}"/karmada-apiserver.yaml
 echo -e "\nApply dynamic rendered apiserver service in ${TEMP_PATH_APISERVER}/karmada-apiserver.yaml."
 kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${TEMP_PATH_APISERVER}"/karmada-apiserver.yaml
@@ -223,12 +223,12 @@ fi
 util::append_client_kubeconfig "${HOST_CLUSTER_KUBECONFIG}" "${CERT_DIR}/karmada.crt" "${CERT_DIR}/karmada.key" "${KARMADA_APISERVER_IP}" "${KARMADA_APISERVER_SECURE_PORT}" karmada-apiserver
 
 # deploy kube controller manager
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/kube-controller-manager.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/kube-controller-manager.yaml"
 # deploy aggregated-apiserver on host cluster
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-aggregated-apiserver.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-aggregated-apiserver.yaml"
 util::wait_pod_ready "${HOST_CLUSTER_NAME}" "${KARMADA_AGGREGATION_APISERVER_LABEL}" "${KARMADA_SYSTEM_NAMESPACE}"
 # deploy karmada-search on host cluster
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-search.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-search.yaml"
 util::wait_pod_ready "${HOST_CLUSTER_NAME}" "${KARMADA_SEARCH_LABEL}" "${KARMADA_SYSTEM_NAMESPACE}"
 
 # install CRD APIs on karmada apiserver.
@@ -247,29 +247,29 @@ installCRDs "karmada-apiserver" "${TEMP_PATH_CRDS}"
 rm -rf "${TEMP_PATH_CRDS}"
 
 # deploy webhook configurations on karmada apiserver
-util::deploy_webhook_configuration "karmada-apiserver" "${ROOT_CA_FILE}" "${REPO_ROOT}/artifacts/deploy/webhook-configuration.yaml"
+util::deploy_webhook_configuration "karmada-apiserver" "${ROOT_CA_FILE}" "${REPO_ROOT}/installer/artifacts/deploy/webhook-configuration.yaml"
 
 # deploy APIService on karmada apiserver for karmada-aggregated-apiserver
-kubectl --context="karmada-apiserver" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-aggregated-apiserver-apiservice.yaml"
+kubectl --context="karmada-apiserver" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-aggregated-apiserver-apiservice.yaml"
 # make sure apiservice for v1alpha1.cluster.karmada.io is Available
 util::wait_apiservice_ready "karmada-apiserver" "${KARMADA_AGGREGATION_APISERVER_LABEL}"
 
 # deploy APIService on karmada apiserver for karmada-search
-kubectl --context="karmada-apiserver" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-search-apiservice.yaml"
+kubectl --context="karmada-apiserver" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-search-apiservice.yaml"
 # make sure apiservice for v1alpha1.search.karmada.io is Available
 util::wait_apiservice_ready "karmada-apiserver" "${KARMADA_SEARCH_LABEL}"
 
 # deploy cluster proxy rbac for admin
-kubectl --context="karmada-apiserver" apply -f "${REPO_ROOT}/artifacts/deploy/cluster-proxy-admin-rbac.yaml"
+kubectl --context="karmada-apiserver" apply -f "${REPO_ROOT}/installer/artifacts/deploy/cluster-proxy-admin-rbac.yaml"
 
 # deploy controller-manager on host cluster
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-controller-manager.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-controller-manager.yaml"
 # deploy scheduler on host cluster
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-scheduler.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-scheduler.yaml"
 # deploy descheduler on host cluster
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-descheduler.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-descheduler.yaml"
 # deploy webhook on host cluster
-kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/artifacts/deploy/karmada-webhook.yaml"
+kubectl --context="${HOST_CLUSTER_NAME}" apply -f "${REPO_ROOT}/installer/artifacts/deploy/karmada-webhook.yaml"
 
 # make sure all karmada control plane components are ready
 util::wait_pod_ready "${HOST_CLUSTER_NAME}" "${KARMADA_CONTROLLER_LABEL}" "${KARMADA_SYSTEM_NAMESPACE}"
